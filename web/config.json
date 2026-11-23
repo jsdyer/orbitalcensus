@@ -1,0 +1,15 @@
+{
+  "retainedCaptures": 14,
+  "maxSourceBytes": 25000000,
+  "minimumRecords": 1000,
+  "minimumRetainedFraction": 0.95,
+  "coverage": {"owners": [], "objectTypes": []},
+  "comparisonFields": ["OBJECT_NAME", "OBJECT_ID", "OBJECT_TYPE", "OPS_STATUS_CODE", "OWNER", "LAUNCH_DATE", "LAUNCH_SITE", "DECAY_DATE", "DATA_STATUS_CODE", "ORBIT_CENTER", "ORBIT_TYPE"],
+  "presets": [
+    {"label": "Canadian objects", "owner": "CA", "query": ""},
+    {"label": "ISS", "owner": "", "query": "25544"},
+    {"label": "Starlink", "owner": "", "query": "STARLINK"},
+    {"label": "Early spaceflight", "owner": "", "query": "", "yearMax": "1969"}
+  ],
+  "pageSize": 50
+}

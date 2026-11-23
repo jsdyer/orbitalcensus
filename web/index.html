@@ -1,34 +1,25 @@
 <!doctype html>
-<html lang="en-CA">
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="{{DESCRIPTION}}">
-  <title>{{TITLE}} · CoolCode</title>
-  <link rel="stylesheet" href="./style.css">
-  <script type="module" src="./app.mjs"></script>
-  {{VISIT_COUNTER}}
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{TITLE}} · CoolCode</title><meta name="description" content="{{DESCRIPTION}}"><link rel="canonical" href="https://coolcode.ca/{{TOOL_ID}}/">
+<link rel="stylesheet" href="./style.css">{{VISIT_COUNTER}}
+<script type="module" src="./app.mjs"></script>
 </head>
-<body data-tool-id="{{TOOL_ID}}">
-  <a class="skip" href="#main">Skip to content</a>
-  <header><a href="https://coolcode.ca/">← CoolCode.ca</a><a href="{{SOURCE_URL}}">Source &amp; instructions ↗</a></header>
-  <main id="main">
-    <p class="eyebrow">Browser tool starter</p>
-    <h1>{{TITLE}}</h1>
-    <p class="intro">{{DESCRIPTION}}</p>
-    <section aria-labelledby="example-title">
-      <h2 id="example-title">Clean a list</h2>
-      <p>Trim spaces, skip blank lines and remove exact duplicates. Capitalization stays distinct.</p>
-      <div class="panels">
-        <div><label for="input">Your lines</label><textarea id="input" rows="10" maxlength="100000" spellcheck="false" placeholder="Paste one item per line"></textarea></div>
-        <div><label for="output">Cleaned lines</label><textarea id="output" rows="10" readonly spellcheck="false"></textarea></div>
-      </div>
-      <div class="actions"><button id="sample" type="button">Load example</button><button id="clear" type="button">Clear</button><button id="copy" type="button" hidden>Copy result</button></div>
-      <p id="status" role="status" aria-live="polite">Paste a list to begin.</p>
-      <noscript><p>This tool needs JavaScript to process your text. The source is available above.</p></noscript>
-    </section>
-    <aside aria-label="Privacy"><strong>Stays on your device.</strong> The browser processes your text in this tab. Reloading clears it.</aside>
-  </main>
-  <footer>Part of <a href="https://coolcode.ca/">the CoolCode collection</a>. {{ISSUE_LINK}}</footer>
-</body>
-</html>
+<body>
+<a href="#explore" class="skip">Skip to catalogue</a>
+<header><a class="brand" href="https://coolcode.ca/">CoolCode<span>SPACE RECORDS</span></a><nav aria-label="Main"><a href="#method">Sources & method</a><a href="{{SOURCE_URL}}">Source code</a></nav></header>
+<main>
+<section class="hero" aria-labelledby="title"><div><p class="eyebrow">THE SATELLITE CATALOGUE, OVER TIME</p><h1 id="title">Orbital <em>Census.</em></h1><p class="intro">What went up. What changed.<br>Explore the objects in the catalogue.</p><a class="hero-link" href="#explore">Explore the catalogue</a></div><div class="orbit-art" aria-hidden="true"><div class="orbit o1"></div><div class="orbit o2"></div><div class="orbit o3"></div><div class="earth"></div><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="art-label">PAYLOADS / ROCKET BODIES / DEBRIS</span></div></section>
+<div class="edition"><span class="edition-source">CELESTRAK / SATCAT</span><span id="edition-date">Loading the retained catalogue…</span><a href="#history">Dated captures</a></div>
+<p role="status" id="status" class="notice">Loading locally hosted data.</p>
+<section id="explore" class="explore"><div class="section-title"><div><p class="eyebrow">LOOK THROUGH THE RECORD</p><h2>A census of objects.</h2></div><div class="downloads"><button id="save" disabled>Save capture JSON</button><button id="csv" disabled>Export filtered CSV</button><label class="button secondary">Import capture<input id="import" type="file" accept=".json,.gz,application/json,application/gzip" hidden></label></div></div>
+<div class="filter-panel"><div class="search-field"><label for="query">Name, NORAD number or international designator</label><input id="query" type="search" placeholder="Try RADARSAT, 25544 or 2025-001"></div><div><label for="owner">Owner / organization</label><select id="owner"><option value="">All owner codes</option></select></div><div><label for="type">Object type</label><select id="type"><option value="">All types</option><option value="PAY">Payloads</option><option value="R/B">Rocket bodies</option><option value="DEB">Debris</option><option value="UNK">Unknown</option></select></div><div><label for="state">Reported state</label><select id="state"><option value="">All states</option><option value="active">Active payloads</option><option value="decayed">Decay recorded</option><option value="no-decay">No decay recorded</option></select></div><div><label for="year-min">Launched from</label><input id="year-min" type="number" min="1900" max="2200" placeholder="Any year"></div><div><label for="year-max">Through</label><input id="year-max" type="number" min="1900" max="2200" placeholder="Any year"></div><button id="reset" class="secondary">Reset filters</button><div id="presets" class="presets" aria-label="Starting searches"></div></div>
+<div class="stats" id="stats"><div><strong id="count">—</strong><span>matching objects</span></div><div><strong id="payload-count">—</strong><span>payloads</span></div><div><strong id="active-count">—</strong><span>active payloads</span></div><div><strong id="decay-count">—</strong><span>with decay recorded</span></div><div><strong id="launch-count">—</strong><span>distinct launch IDs</span></div></div>
+<div class="charts"><section><div class="chart-title"><h3>Launch cohorts</h3><span>Objects by launch decade</span></div><div id="cohorts" class="bars" aria-label="Objects by launch decade"></div></section><section><div class="chart-title"><h3>What went up</h3><span>Object types in this selection</span></div><div id="types" class="bars" aria-label="Object type counts"></div></section></div>
+<div class="records-layout"><section class="records"><div class="list-head"><h3>The catalogue</h3><span id="shown">Waiting for capture</span></div><div class="table-wrap"><table><thead><tr><th>Object / identifier</th><th>Type & owner</th><th>Launched</th><th>Reported state</th></tr></thead><tbody id="rows"></tbody></table></div><p id="empty" hidden>No objects match these filters. Try another name, owner code or year.</p><div class="pager"><button id="previous" disabled>Previous</button><span id="page-label">Page —</span><button id="next" disabled>Next</button></div></section><aside id="detail" aria-live="polite"><p class="eyebrow">OBJECT RECORD</p><h3 id="object-title">Select an object</h3><p id="object-subtitle">Open a name to inspect its catalogue fields.</p><dl id="fields"></dl><a id="official" hidden target="_blank" rel="noopener noreferrer">Open CelesTrak record</a><p class="detail-note">An empty decay field is not proof that an object is still in Earth orbit. SATCAT includes non-Earth and docked objects, and data may lag events.</p></aside></div>
+</section>
+<section id="history" class="history"><div class="section-title"><div><p class="eyebrow">THE RECORD CHANGES</p><h2>Compare editions.</h2></div><p>Changes are detected between retained captures.<br>A disappearance is not automatically a decay.</p></div><div class="history-controls"><div><label for="capture">Catalogue capture</label><select id="capture"></select></div><div><label for="baseline">Compare with earlier capture</label><select id="baseline"></select></div><label class="check"><input type="checkbox" id="orbital-fields">Include orbital measurements</label><button id="compare" disabled>Compare captures</button></div><p id="capture-info" class="muted"></p><p id="comparison-status">The first capture establishes a baseline. A later changed source edition will enable comparison.</p><div id="comparison" aria-live="polite"></div></section>
+<section id="method" class="method"><div><p class="eyebrow">ABOUT THE CENSUS</p><h2>A catalogue, not a live sky.</h2><p>These are CelesTrak SATCAT records captured for comparison, not real-time locations or collision predictions. Launch dates describe the launch associated with an object; debris may be catalogued much later. Counts describe this catalogue and do not include every object in space.</p></div><div><h3>Reading the evidence</h3><p>“Active” follows CelesTrak operational status codes +, P, B, S and X for payloads. It does not necessarily mean transmitting. “Decay recorded” uses a reported decay date or status D. Owner codes can represent countries, organizations or joint programmes.</p><p>Default comparisons track identity and status fields. Check “Include orbital measurements” to also compare period, inclination, apogee, perigee and radar cross section. Changed measurements alone do not establish a manoeuvre.</p><p>The collector checks daily and downloads the full CSV only when its source edition or configured coverage changes. Fourteen captures are retained by default. Source edition, capture time and last check are distinct; schedules can be delayed.</p></div><div><h3>Sources & your data</h3><p><a href="https://celestrak.org/satcat/search.php">CelesTrak SATCAT</a> · <a href="https://celestrak.org/satcat/satcat-format.php">Field definitions</a> · <a href="https://celestrak.org/satcat/status.php">Operational status</a> · <a href="https://celestrak.org/satcat/sources.php">Owner codes</a> · <a href="https://celestrak.org/usage-policy.php">Usage policy</a></p><p>Searches, filters and imported captures stay in this tab. No CelesTrak API key is needed. The page fetches retained data from CoolCode, not a live upstream query per visitor. Save a capture before closing if you imported your own file.</p><p id="checked-at"></p><p><a href="https://coolcode.ca/launchledger/">Launch Ledger</a> · <a href="https://coolcode.ca/satpasses/" id="satellite-link">Satellite Pass</a></p></div></section>
+</main><footer><a href="https://coolcode.ca/">CoolCode.ca</a><span>Orbital Census · CelesTrak source data</span>{{ISSUE_LINK}}</footer>
+</body></html>

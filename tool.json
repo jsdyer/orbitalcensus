@@ -1,16 +1,23 @@
 {
-  "id": "coolcode-tool-template",
-  "title": "CoolCode Tool Starter",
-  "description": "A browser-only example that trims lines and removes exact duplicates.",
-  "category": "security",
-  "tags": ["text", "lines", "duplicates"],
-  "icon": "scan-search",
-  "url": "/coolcode-tool-template/",
-  "source": "https://github.com/jsdyer/coolcode-tool-template",
+  "id": "orbitalcensus",
+  "title": "Orbital Census",
+  "description": "Explore the satellite catalogue by launch, owner and object type, and compare dated captures.",
+  "category": "field-kit",
+  "tags": [
+    "satellites",
+    "space",
+    "catalogue",
+    "CelesTrak",
+    "history"
+  ],
+  "icon": "telescope",
+  "url": "/orbitalcensus/",
+  "source": "https://github.com/jsdyer/orbitalcensus",
   "hosting": "project",
   "access": "browser",
   "data_info": {
-    "mode": "local",
-    "detail": "The browser reads the text you paste and compares its lines."
+    "mode": "snapshot",
+    "detail": "Dated CelesTrak SATCAT records with source edition times, object fields and capture comparisons.",
+    "cadence": "Daily"
   }
 }

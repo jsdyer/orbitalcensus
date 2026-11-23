@@ -1,0 +1,37 @@
+name: Orbital Census · Refresh catalogue
+on:
+  schedule:
+    - cron: '17 10 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [web/config.json, scripts/refresh.py, .github/workflows/refresh.yml]
+permissions:
+  contents: write
+concurrency:
+  group: orbitalcensus-refresh
+  cancel-in-progress: false
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Validate collector
+        run: python3 -m unittest discover -s tests -v
+      - name: Check and capture SATCAT
+        run: python3 scripts/refresh.py
+      - name: Preserve dated catalogue records
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add web/data/
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "data: retain dated SATCAT catalogue"
+          git pull --rebase origin main
+          git push origin HEAD:main

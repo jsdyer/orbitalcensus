@@ -1,37 +1,52 @@
-import { cleanLines } from './model.mjs';
-const input = document.querySelector('#input');
-const output = document.querySelector('#output');
-const status = document.querySelector('#status');
-const copy = document.querySelector('#copy');
-function update() {
-  const result = cleanLines(input.value);
-  output.value = result.text;
-  status.textContent = `${result.count} unique ${result.count === 1 ? 'line' : 'lines'}; ${result.removed} ${result.removed === 1 ? 'duplicate' : 'duplicates'} removed.`;
-  copy.disabled = result.count === 0;
+import {FIELDS,LABELS,TYPES,OPS,ownerLabel,unpack,filterRows,summary,groupCounts,hasDecay,isActive,yearOf,compare,safeCapturePath,csv,validateReceipt} from './model.mjs';
+const $=id=>document.getElementById(id),nf=new Intl.NumberFormat('en-CA');
+const format=value=>value?new Date(value).toLocaleString('en-CA',{timeZone:'UTC',dateStyle:'medium',timeStyle:'short'})+' UTC':'Not reported';
+let config={},index={},entries=[],cache=new Map(),receipt=null,rows=[],filtered=[],page=0,selectedId=null,activeKey='',serial=0;
+const el=(tag,text,className)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;};
+function status(message,error=false){$('status').textContent=message;$('status').classList.toggle('error',error);}
+async function json(url){const result=await fetch(url,{credentials:'omit',cache:'no-cache'});if(!result.ok)throw Error(`Saved data request failed (${result.status}).`);return result.json();}
+async function decode(blob){
+ if(blob.size>30_000_000)throw Error('Capture file exceeds the 30 MB compressed/input limit.');
+ const first=new Uint8Array(await blob.slice(0,2).arrayBuffer());
+ let stream=blob.stream();
+ if(first[0]===31&&first[1]===139){if(!('DecompressionStream'in window))throw Error('This browser cannot unpack compressed captures. Use a current browser or import a decompressed JSON file.');stream=stream.pipeThrough(new DecompressionStream('gzip'));}
+ const reader=stream.getReader(),chunks=[];let bytes=0;
+ while(true){const {value,done}=await reader.read();if(done)break;bytes+=value.byteLength;if(bytes>60_000_000){await reader.cancel();throw Error('Decoded capture exceeds 60 MB.');}chunks.push(value);}
+ return validateReceipt(JSON.parse(await new Blob(chunks).text()));
 }
-input.addEventListener('input', update);
-document.querySelector('#sample').addEventListener('click', () => {
-  input.value = '  Halifax\nLangley\nHalifax\n\nVancouver  ';
-  update();
-});
-document.querySelector('#clear').addEventListener('click', () => {
-  input.value = '';
-  update();
-  input.focus();
-});
-if (navigator.clipboard && window.isSecureContext) {
-  copy.hidden = false;
-  copy.disabled = true;
-  copy.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(output.value);
-      status.textContent = 'Result copied.';
-    } catch {
-      output.focus();
-      output.select();
-      status.textContent = 'Copy was unavailable. The result is selected so you can copy it manually.';
-    }
-  });
+async function getReceipt(entry){if(cache.has(entry.key))return cache.get(entry.key);const response=await fetch(safeCapturePath(entry.file),{credentials:'omit'});if(!response.ok)throw Error(`Capture download failed (${response.status}).`);const data=await decode(await response.blob());if(data.rows.length!==entry.recordCount||data.sourceUpdatedAt!==entry.sourceUpdatedAt||data.sourceSha256!==entry.sourceSha256)throw Error('Capture metadata does not match the catalogue index.');cache.set(entry.key,data);return data;}
+function options(){
+ $('capture').replaceChildren();
+ for(const entry of entries){const option=el('option',`${format(entry.capturedAt)} · ${nf.format(entry.recordCount)} objects${entry.imported?' · imported':''}`);option.value=entry.key;$('capture').append(option);}
+ $('capture').value=activeKey;
+ baselineOptions();
 }
-// Namespace future preference storage as coolcode:<tool-id>:<key>.
-// Do not persist pasted text or uploads by default.
+function baselineOptions(){const prior=$('baseline').value;$('baseline').replaceChildren();for(const entry of entries.filter(e=>e.key!==activeKey&&Date.parse(e.capturedAt)<Date.parse(receipt?.capturedAt||0))){const option=el('option',format(entry.capturedAt)+(entry.imported?' · imported':''));option.value=entry.key;$('baseline').append(option);}
+ if([...$('baseline').options].some(o=>o.value===prior))$('baseline').value=prior;
+ $('compare').disabled=!$('baseline').options.length;
+ if(!$('baseline').options.length){const option=el('option','Awaiting an earlier capture');option.value='';$('baseline').append(option);}
+}
+function filters(){return {query:$('query').value,owner:$('owner').value,type:$('type').value,status:$('state').value,yearMin:$('year-min').value,yearMax:$('year-max').value};}
+function bars(target,groups,max){target.replaceChildren();if(!groups.length){target.append(el('p','No matching objects.'));return;}for(const group of groups){const row=el('div',undefined,'bar-row');row.append(el('span',group.name));const track=el('div',undefined,'bar-track'),fill=el('div',undefined,'bar-fill');fill.style.width=(100*group.count/max)+'%';track.append(fill);row.append(track,el('span',nf.format(group.count),'bar-value'));target.append(row);}}
+function renderStats(){const counts=summary(filtered);for(const [id,key]of [['count','objects'],['payload-count','payloads'],['active-count','active'],['decay-count','decayed'],['launch-count','launches']])$(id).textContent=nf.format(counts[key]);const decades=groupCounts(filtered,row=>{const year=yearOf(row);return year===null?'Unknown':Math.floor(year/10)*10+'s';}).sort((a,b)=>String(a.name).localeCompare(String(b.name)));bars($('cohorts'),decades,Math.max(1,...decades.map(g=>g.count)));const types=groupCounts(filtered,'OBJECT_TYPE').map(g=>({...g,name:TYPES[g.name]||g.name}));bars($('types'),types,Math.max(1,...types.map(g=>g.count)));}
+function detail(row){if(!row)return;selectedId=row.NORAD_CAT_ID;$('object-title').textContent=row.OBJECT_NAME;$('object-subtitle').textContent=`NORAD ${row.NORAD_CAT_ID} · ${row.OBJECT_ID||'No international designator'}`;$('fields').replaceChildren();for(const field of FIELDS.filter(k=>!['OBJECT_NAME','NORAD_CAT_ID','OBJECT_ID'].includes(k))){const wrap=el('div');let value=row[field]||'Not reported';if(field==='OBJECT_TYPE')value=TYPES[row[field]]||value;if(field==='OWNER')value=ownerLabel(row[field]);if(field==='OPS_STATUS_CODE')value=OPS[row[field]]?`${OPS[row[field]]} (${row[field]})`:value;wrap.append(el('dt',LABELS[field]),el('dd',value));$('fields').append(wrap);}$('official').href='https://celestrak.org/satcat/records.php?CATNR='+row.NORAD_CAT_ID;$('official').hidden=false;}
+function table(){
+ const size=Math.max(10,Math.min(200,Number(config.pageSize)||50)),total=Math.max(1,Math.ceil(filtered.length/size));page=Math.min(page,total-1);$('rows').replaceChildren();
+ for(const row of filtered.slice(page*size,(page+1)*size)){
+  const tr=el('tr'),name=el('td'),button=el('button',row.OBJECT_NAME,'object-name');button.type='button';button.addEventListener('click',()=>detail(row));name.append(button,el('small',`${row.NORAD_CAT_ID} · ${row.OBJECT_ID||'No designator'}`));
+  const type=el('td');type.append(el('span',TYPES[row.OBJECT_TYPE]),el('small',ownerLabel(row.OWNER)));const date=el('td',row.LAUNCH_DATE||'Not reported');const state=el('td');state.append(el('span',hasDecay(row)?'Decay recorded':isActive(row)?'Active payload':OPS[row.OPS_STATUS_CODE]||'Unknown','tag '+(hasDecay(row)?'decayed':isActive(row)?'active':'')));if(row.DECAY_DATE)state.append(el('small',row.DECAY_DATE));tr.append(name,type,date,state);$('rows').append(tr);
+ }
+ $('empty').hidden=Boolean(filtered.length);$('shown').textContent=filtered.length?`${nf.format(page*size+1)}–${nf.format(Math.min((page+1)*size,filtered.length))} of ${nf.format(filtered.length)} · newest catalogue IDs first`:'0 matching objects';$('page-label').textContent=`Page ${page+1} of ${total}`;$('previous').disabled=page===0;$('next').disabled=page+1===total;
+ if(filtered.length&&!filtered.some(r=>r.NORAD_CAT_ID===selectedId))detail(filtered[0]);
+}
+function render(){if(!receipt)return;const f=filters();if(f.yearMin&&f.yearMax&&Number(f.yearMin)>Number(f.yearMax)){status('The first launch year must be no later than the last year. The previous selection is unchanged.',true);return;}filtered=filterRows(rows,f);page=0;renderStats();table();$('csv').disabled=!filtered.length;status('Searches and filters use this retained capture. Nothing typed here is sent to CelesTrak.');}
+async function select(entry){const token=++serial;status('Opening retained catalogue…');try{const next=await getReceipt(entry);if(token!==serial)return;receipt=next;activeKey=entry.key;rows=unpack(receipt).sort((a,b)=>Number(b.NORAD_CAT_ID)-Number(a.NORAD_CAT_ID));const oldOwner=$('owner').value;$('owner').replaceChildren(el('option','All owner codes'));$('owner').firstChild.value='';for(const code of [...new Set(rows.map(r=>r.OWNER))].sort((a,b)=>ownerLabel(a).localeCompare(ownerLabel(b)))){if(!code)continue;const option=el('option',ownerLabel(code));option.value=code;$('owner').append(option);}$('owner').value=[...$('owner').options].some(o=>o.value===oldOwner)?oldOwner:'';$('edition-date').textContent=`Source edition ${format(receipt.sourceUpdatedAt)}`;$('capture-info').textContent=`Captured ${format(receipt.capturedAt)} · ${nf.format(rows.length)} retained of ${nf.format(receipt.sourceRecordCount)} source objects. ${receipt.coverage.owners.length?'Owner coverage: '+receipt.coverage.owners.join(', '):'All source owner codes.'} ${receipt.coverage.objectTypes.length?'Types: '+receipt.coverage.objectTypes.join(', '):'All object types.'}`;$('save').disabled=false;options();$('comparison').replaceChildren();$('comparison-status').textContent=$('compare').disabled?'This capture has no earlier retained baseline. A later changed source edition will enable comparison.':'Choose an earlier capture and compare. Filters above do not change the capture comparison.';render();}catch(error){$('capture').value=activeKey;status(`${error.message} The previous catalogue remains available.`,true);}}
+function reset(){for(const id of ['query','owner','type','state','year-min','year-max'])$(id).value='';render();}
+function download(name,body,type){const url=URL.createObjectURL(new Blob([body],{type})),a=el('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function changeList(title,items,describe){const details=el('details'),head=el('summary',`${title} · ${nf.format(items.length)}`);details.append(head);const list=el('ul');for(const item of items.slice(0,200))list.append(el('li',describe(item)));details.append(list);if(items.length>200)details.append(el('p','First 200 shown. Download both captures to retain all source rows.'));return details;}
+$('compare').addEventListener('click',async()=>{const entry=entries.find(e=>e.key===$('baseline').value);if(!entry||!receipt)return;const current=receipt,token=serial;$('compare').disabled=true;$('comparison-status').textContent='Comparing retained records…';try{const older=await getReceipt(entry);if(token!==serial)return;const fields=$('orbital-fields').checked?FIELDS.filter(k=>k!=='NORAD_CAT_ID'):config.comparisonFields;const result=compare(older,current,fields);$('comparison').replaceChildren();const counts=el('div',undefined,'change-summary');for(const [label,key]of [['Added','added'],['Absent in newer capture','removed'],['Changed','changed']])counts.append(el('span',`${nf.format(result[key].length)} ${label}`));$('comparison').append(counts,changeList('Added records',result.added,r=>`${r.NORAD_CAT_ID} · ${r.OBJECT_NAME}`),changeList('Records absent from newer capture',result.removed,r=>`${r.NORAD_CAT_ID} · ${r.OBJECT_NAME}`),changeList('Changed records',result.changed,r=>`${r.id} · ${r.name} — ${r.changes.map(c=>`${LABELS[c.field]}: ${c.before||'not reported'} → ${c.after||'not reported'}`).join('; ')}`));$('comparison-status').textContent=`${format(older.sourceUpdatedAt)} compared with ${format(current.sourceUpdatedAt)}. ${fields.length} fields checked; changes show catalogue revisions, not independently verified space events.`;}catch(error){$('comparison-status').textContent=error.message;$('comparison').replaceChildren();}finally{if(token===serial)$('compare').disabled=false;}});
+for(const id of ['query','owner','type','state','year-min','year-max'])$(id).addEventListener(id==='query'||id.startsWith('year')?'input':'change',render);
+$('reset').addEventListener('click',reset);$('previous').addEventListener('click',()=>{page--;table();});$('next').addEventListener('click',()=>{page++;table();});$('capture').addEventListener('change',()=>select(entries.find(e=>e.key===$('capture').value)));
+$('save').addEventListener('click',()=>{if(receipt)download('orbital-census-'+receipt.capturedAt.slice(0,10)+'.json',JSON.stringify(receipt),'application/json');});$('csv').addEventListener('click',()=>download('orbital-census-filtered.csv',csv(filtered),'text/csv;charset=utf-8'));
+$('import').addEventListener('change',async event=>{const file=event.target.files[0];if(!file)return;status('Reading capture locally…');try{const data=await decode(file),key='import-'+Date.now();cache.set(key,data);entries.push({key,imported:true,capturedAt:data.capturedAt,sourceUpdatedAt:data.sourceUpdatedAt,recordCount:data.rows.length});entries.sort((a,b)=>Date.parse(b.capturedAt)-Date.parse(a.capturedAt));await select(entries.find(e=>e.key===key));status('Imported locally into this tab. Save capture JSON to keep a copy before closing.');}catch(error){status(`${error.message} Your previous catalogue is unchanged.`,true);}finally{event.target.value='';}});
+try{[config,index]=await Promise.all([json('./config.json'),json('./data/index.json')]);if(!Array.isArray(index.captures)||!index.captures.length)throw Error('No saved catalogue is available yet.');entries=index.captures.map(entry=>({...entry,key:entry.file}));for(const preset of config.presets||[]){const button=el('button',preset.label);button.addEventListener('click',()=>{reset();$('query').value=preset.query||'';$('owner').value=preset.owner||'';$('year-min').value=preset.yearMin||'';$('year-max').value=preset.yearMax||'';render();});$('presets').append(button);}$('checked-at').textContent=`Last successful source check: ${format(index.checkedAt)}. Source edition dates are shown separately above.`;await select(entries[0]);}catch(error){status(`Could not open the catalogue: ${error.message} Please reload later or open the source links below.`,true);}

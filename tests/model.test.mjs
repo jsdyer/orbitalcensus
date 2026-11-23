@@ -1,21 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanLines } from '../web/model.mjs';
-test('trims, removes blanks and preserves first-seen order', () => {
-  assert.deepEqual(cleanLines('  Halifax\nLangley\nHalifax\n\nVancouver  '), {
-    text: 'Halifax\nLangley\nVancouver', count: 3, removed: 1,
-  });
-});
-test('supports Windows and old Mac line endings', () => {
-  assert.equal(cleanLines('a\r\nb\ra').text, 'a\nb');
-});
-test('empty text and whitespace produce an empty result', () => {
-  assert.deepEqual(cleanLines(' \n\t'), { text: '', count: 0, removed: 0 });
-});
-test('preserves case and Unicode', () => {
-  assert.equal(cleanLines('Québec\nquébec\n東京\nQuébec').text, 'Québec\nquébec\n東京');
-});
-test('treats markup as ordinary text', () => {
-  assert.equal(cleanLines('<script>alert(1)</script>\n<script>alert(1)</script>').text, '<script>alert(1)</script>');
-});
-test('rejects non-text input', () => { assert.throws(() => cleanLines(null), TypeError); });
+import {readFileSync} from 'node:fs';
+import {gunzipSync} from 'node:zlib';
+import {FIELDS,SCHEMA,unpack,validateReceipt,filterRows,summary,groupCounts,compare,safeCapturePath,csv,isActive,hasDecay} from '../web/model.mjs';
+const record=changes=>Object.assign(Object.fromEntries(FIELDS.map(k=>[k,''])),{NORAD_CAT_ID:'25544',OBJECT_NAME:'ISS',OBJECT_ID:'1998-067A',OBJECT_TYPE:'PAY',OWNER:'ISS',LAUNCH_DATE:'1998-11-20',OPS_STATUS_CODE:'+'},changes);
+const receipt=(records,changes={})=>({schema:SCHEMA,capturedAt:'2026-11-23T10:00:00Z',sourceUpdatedAt:'2026-11-22T10:00:00Z',sourceRecordCount:records.length,coverage:{owners:[],objectTypes:[]},fields:FIELDS,rows:records.map(r=>FIELDS.map(k=>r[k])),...changes});
+test('real bundled catalogue is complete, unique and supports 6+ digit numbers',()=>{const index=JSON.parse(readFileSync(new URL('../web/data/index.json',import.meta.url)));const data=JSON.parse(gunzipSync(readFileSync(new URL('../web/data/'+index.captures[0].file,import.meta.url))));const rows=unpack(data);assert.equal(rows.length,index.captures[0].recordCount);assert.equal(rows.length,data.sourceRecordCount);assert.ok(rows.length>1000);assert.ok(rows.some(r=>Number(r.NORAD_CAT_ID)>99999));assert.ok(rows.some(r=>r.OWNER==='CA'));});
+test('filters accept an owner and launch beyond starter presets',()=>{const extra=record({NORAD_CAT_ID:'999999999',OWNER:'NEW',OBJECT_NAME:'ADDED SAT',OBJECT_ID:'2027-001A',LAUNCH_DATE:'2027-01-01'});assert.equal(filterRows([record(),extra],{owner:'NEW',query:'added',yearMin:'2027'}).length,1);assert.equal(filterRows([record(),extra],{query:'999999999'}).length,1);});
+test('missing launch dates are excluded only by explicit year filters',()=>{const r=record({LAUNCH_DATE:''});assert.equal(filterRows([r]).length,1);assert.equal(filterRows([r],{yearMin:1957}).length,0);});
+test('active payload definition excludes rocket bodies and absent decay is not labelled active',()=>{assert.equal(isActive(record({OBJECT_TYPE:'R/B'})),false);assert.equal(isActive(record({OPS_STATUS_CODE:'?'})),false);assert.equal(hasDecay(record({OPS_STATUS_CODE:'D'})),true);assert.equal(hasDecay(record({DECAY_DATE:'2026-01-01'})),true);assert.equal(hasDecay(record({OPS_STATUS_CODE:'-'})),false);});
+test('unique launch IDs distinguish objects and launches',()=>{const rows=[record(),record({NORAD_CAT_ID:'25545',OBJECT_ID:'1998-067B',OBJECT_TYPE:'R/B'}),record({NORAD_CAT_ID:'40000',OBJECT_ID:''})];assert.deepEqual(summary(rows),{objects:3,payloads:2,active:2,decayed:0,launches:1});assert.equal(groupCounts(rows,'OBJECT_TYPE').length,2);});
+test('comparison separates additions removals and changed field evidence',()=>{const a=receipt([record(),record({NORAD_CAT_ID:'50000',OBJECT_NAME:'OLD'})]);const b=receipt([record({OPS_STATUS_CODE:'D',DECAY_DATE:'2026-11-23'}),record({NORAD_CAT_ID:'100001',OBJECT_NAME:'NEW'})]);const result=compare(a,b,['OPS_STATUS_CODE','DECAY_DATE']);assert.equal(result.added[0].NORAD_CAT_ID,'100001');assert.equal(result.removed[0].NORAD_CAT_ID,'50000');assert.equal(result.changed.length,1);assert.equal(result.changed[0].changes.length,2);assert.equal(result.removed[0].DECAY_DATE,'');});
+test('default comparison can exclude orbital measurement drift',()=>{const a=receipt([record({PERIOD:'90'})]),b=receipt([record({PERIOD:'91'})]);assert.equal(compare(a,b,['OBJECT_NAME']).changed.length,0);assert.equal(compare(a,b,['PERIOD']).changed.length,1);});
+test('different capture coverage cannot be mistaken for a deletion',()=>{const a=receipt([record()]),b=receipt([record()],{coverage:{owners:['CA'],objectTypes:[]}});assert.throws(()=>compare(a,b,['OBJECT_NAME']),/different coverage/);});
+test('strict receipt validation rejects duplicate IDs and unrecognized schemas',()=>{assert.throws(()=>validateReceipt(receipt([record(),record()])),/duplicated/);assert.throws(()=>validateReceipt({...receipt([]),schema:'other'}),/not a supported/);});
+test('path validation disallows external or traversing capture filenames',()=>{assert.equal(safeCapturePath('captures/20261123T105343Z-76b3b1f54d.json.gz'),'./data/captures/20261123T105343Z-76b3b1f54d.json.gz');for(const path of ['../x','https://evil.test/x','captures/../../x.json.gz'])assert.throws(()=>safeCapturePath(path));});
+test('CSV quotes text and protects formula-leading names',()=>{const result=csv([record({OBJECT_NAME:'=HYPERLINK("x")'})]);assert.ok(result.includes('"\'=HYPERLINK(""x"")"'));assert.ok(result.startsWith('"NORAD_CAT_ID"'));});
+
+test('CSV protects negative-leading text but retains numeric negatives',()=>{const result=csv([record({OBJECT_NAME:'-PAYLOAD',PERIGEE:'-5'})]);assert.ok(result.includes("\"'-PAYLOAD\""));assert.ok(result.includes('\"-5\"'));});
