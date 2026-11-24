@@ -2,6 +2,19 @@
   "schema": "coolcode.orbitalcensus.v1",
   "captures": [
     {
+      "capturedAt": "2026-11-24T20:39:24Z",
+      "sourceUpdatedAt": "2026-11-24T19:51:51Z",
+      "sourceRecordCount": 71426,
+      "sourceSha256": "78dfe2409e76e247306735fc19c1691906132872ecee609783f22cc5026dfb24",
+      "coverage": {
+        "owners": [],
+        "objectTypes": []
+      },
+      "file": "captures/20261124T203924Z-78dfe2409e.json.gz",
+      "recordCount": 71426,
+      "bytes": 1567070
+    },
+    {
       "capturedAt": "2026-11-24T08:38:06Z",
       "sourceUpdatedAt": "2026-11-23T20:05:22Z",
       "sourceRecordCount": 71424,
@@ -28,6 +41,6 @@
       "bytes": 1565478
     }
   ],
-  "checkedAt": "2026-11-24T12:23:28Z",
+  "checkedAt": "2026-11-24T20:39:24Z",
   "source": "https://celestrak.org/pub/satcat.csv"
 }
