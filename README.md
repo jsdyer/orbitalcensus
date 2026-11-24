@@ -74,3 +74,11 @@ App source lives in `web/`, the collector/builder in `scripts/`, and meaningful 
 The initial `.json.gz` keeps the exact normalized source columns plus SHA-256 of the original CSV, source URL, edition time and retrieval time. `web/data/index.json` lists retained captures and counts. Update only validated source data; never fabricate a historical capture to populate the comparison panel.
 
 See also [Launch Ledger](https://coolcode.ca/launchledger/) and [Satellite Pass](https://coolcode.ca/satpasses/).
+
+<!-- schedule-reliability -->
+## Schedule reliability
+
+Public GitHub repositories can have scheduled workflows disabled after 60 days of inactivity. A separate weekly [schedule guard](.github/workflows/schedule-guard.yml) calls GitHub's enable-workflow API for an explicit list of refresh workflows and itself. It can restore workflows disabled for inactivity, preserves manually disabled workflows, and runs independently of collection failures.
+
+This is an interim mitigation, not a scheduling guarantee: GitHub does not document active-workflow renewal as a permanent exemption, and scheduled runs can be delayed or dropped. A scheduler on our own Linux server is the planned independent trigger. The guard does not collect data, create dummy commits, or change source/check timestamps; successful collection and published data freshness still need monitoring.
+<!-- /schedule-reliability -->
